@@ -15,7 +15,22 @@
  			reply_len = -1;
 --- a/hostapd/hostapd_cli.c
 +++ b/hostapd/hostapd_cli.c
-@@ -310,6 +310,34 @@ static int hostapd_cli_cmd_new_sta(struc
+@@ -59,10 +59,14 @@ static const char *const hostapd_cli_ful
+ 
+ static const char *const commands_help =
+ "Commands:\n"
++#ifdef CONFIG_CTRL_IFACE_MIB
+ "   mib                  get MIB variables (dot1x, dot11, radius)\n"
+ "   sta <addr>           get MIB variables for one station\n"
+ "   all_sta              get MIB variables for all stations\n"
+ "   new_sta <addr>       add a new station\n"
++#endif /* CONFIG_CTRL_IFACE_MIB */
++"   deny_sta <addr>      add station to deny ACL\n"
++"   accept_sta <addr>    add station to accept ACL\n"
+ "   deauthenticate <addr>  deauthenticate a station\n"
+ "   disassociate <addr>  disassociate a station\n"
+ #ifdef CONFIG_IEEE80211W
+@@ -310,6 +314,34 @@ static int hostapd_cli_cmd_new_sta(struc
  }
  
  
@@ -50,10 +65,18 @@
  static int hostapd_cli_cmd_deauthenticate(struct wpa_ctrl *ctrl, int argc,
  					  char *argv[])
  {
-@@ -1077,6 +1105,8 @@ static const struct hostapd_cli_cmd host
+@@ -1071,12 +1103,16 @@ struct hostapd_cli_cmd {
+ 
+ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
+ 	{ "ping", hostapd_cli_cmd_ping },
++#ifdef CONFIG_CTRL_IFACE_MIB
+ 	{ "mib", hostapd_cli_cmd_mib },
+ 	{ "relog", hostapd_cli_cmd_relog },
+ 	{ "status", hostapd_cli_cmd_status },
  	{ "sta", hostapd_cli_cmd_sta },
  	{ "all_sta", hostapd_cli_cmd_all_sta },
  	{ "new_sta", hostapd_cli_cmd_new_sta },
++#endif /* CONFIG_CTRL_IFACE_MIB */
 +        { "deny_sta", hostapd_cli_cmd_deny_sta },
 +        { "accept_sta", hostapd_cli_cmd_accept_sta },
  	{ "deauthenticate", hostapd_cli_cmd_deauthenticate },
