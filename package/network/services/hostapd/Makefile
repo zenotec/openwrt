@@ -45,6 +45,12 @@ ifeq ($(LOCAL_VARIANT),mesh)
   CONFIG_VARIANT:=full
 endif
 
+ifeq ($(LOCAL_TYPE),hostapd)
+    PKG_CONFIG_DEPENDS += \
+		CONFIG_HOSTAPD_INTERNAL \
+		CONFIG_HOSTAPD_OPENSSL
+endif
+
 ifeq ($(LOCAL_TYPE),supplicant)
   ifeq ($(LOCAL_VARIANT),full)
     PKG_CONFIG_DEPENDS += \
@@ -72,6 +78,15 @@ DRIVER_MAKEOPTS= \
 
 ifeq ($(LOCAL_VARIANT),full)
   DRIVER_MAKEOPTS += CONFIG_IEEE80211W=$(CONFIG_DRIVER_11W_SUPPORT)
+endif
+
+ifeq ($(LOCAL_TYPE),hostapd)
+  ifdef CONFIG_HOSTAPD_OPENSSL
+    ifeq ($(LOCAL_VARIANT),full)
+      DRIVER_MAKEOPTS += CONFIG_TLS=openssl CONFIG_SAE=y
+      TARGET_LDFLAGS += -lcrypto -lssl
+    endif
+  endif
 endif
 
 ifneq ($(LOCAL_TYPE),hostapd)
@@ -120,6 +135,10 @@ endef
 define Package/hostapd/description
  This package contains a full featured IEEE 802.1x/WPA/EAP/RADIUS
  Authenticator.
+endef
+
+define Package/hostapd/config
+	source "$(SOURCE)/ConfigHostapd.in"
 endef
 
 define Package/hostapd-mini

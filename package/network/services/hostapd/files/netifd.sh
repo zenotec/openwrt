@@ -113,7 +113,7 @@ hostapd_common_add_bss_config() {
 	config_add_string 'bssid:macaddr' 'ssid:string'
 	config_add_boolean wds wmm uapsd hidden
 
-	config_add_int maxassoc max_inactivity
+	config_add_int maxassoc max_inactivity track_sta_max_num
 	config_add_boolean disassoc_low_ack isolate short_preamble
 
 	config_add_int \
@@ -186,11 +186,12 @@ hostapd_set_bss_options() {
 		wps_pushbutton wps_label ext_registrar wps_pbc_in_m1 \
 		wps_device_type wps_device_name wps_manufacturer wps_pin \
 		macfilter ssid wmm uapsd hidden short_preamble rsn_preauth \
-		iapp_interface eapol_version
+		iapp_interface eapol_version track_sta_max_num
 
 	set_default isolate 0
 	set_default maxassoc 0
 	set_default max_inactivity 0
+	set_default track_sta_max_num 0
 	set_default short_preamble 1
 	set_default disassoc_low_ack 1
 	set_default hidden 0
@@ -207,6 +208,9 @@ hostapd_set_bss_options() {
 	fi
 	if [ "$max_inactivity" -gt 0 ]; then
 		append bss_conf "ap_max_inactivity=$max_inactivity" "$N"
+	fi
+	if [ "$track_sta_max_num" -gt 0 ]; then
+		append bss_conf "track_sta_max_num=$track_sta_max_num" "$N"
 	fi
 
 	append bss_conf "disassoc_low_ack=$disassoc_low_ack" "$N"

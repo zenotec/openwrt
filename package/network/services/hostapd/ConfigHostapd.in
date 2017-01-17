@@ -1,0 +1,17 @@
+# Hostapd config
+
+choice
+	prompt "Choose TLS provider"
+	default WPA_HOSTAPD_INTERNAL
+	depends on PACKAGE_hostapd
+
+config WPA_HOSTAPD_INTERNAL
+	bool "internal"
+
+config WPA_HOSTAPD_OPENSSL
+	bool "openssl"
+	select PACKAGE_libopenssl
+
+endchoice
+
+
