@@ -1,0 +1,89 @@
+Index: hostapd-2016-06-15/hostapd/ctrl_iface.c
+===================================================================
+--- hostapd-2016-06-15.orig/hostapd/ctrl_iface.c
++++ hostapd-2016-06-15/hostapd/ctrl_iface.c
+@@ -2119,7 +2119,7 @@ static int hostapd_ctrl_iface_track_sta_
+ 
+ 		os_reltime_sub(&now, &info->last_seen, &age);
+ 		ret = os_snprintf(pos, end - pos, MACSTR " %u\n",
+-				  MAC2STR(info->addr), (unsigned int) age.sec);
++				  MAC2STR(info->addr), (unsigned int) age.sec, info->ssi_signal);
+ 		if (os_snprintf_error(end - pos, ret))
+ 			break;
+ 		pos += ret;
+Index: hostapd-2016-06-15/src/ap/beacon.c
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/beacon.c
++++ hostapd-2016-06-15/src/ap/beacon.c
+@@ -617,7 +617,7 @@ static struct hostapd_sta_info * sta_tra
+ }
+ 
+ 
+-void sta_track_add(struct hostapd_iface *iface, const u8 *addr)
++void sta_track_add(struct hostapd_iface *iface, const u8 *addr, int ssi_signal)
+ {
+ 	struct hostapd_sta_info *info;
+ 
+@@ -627,6 +627,7 @@ void sta_track_add(struct hostapd_iface
+ 		dl_list_del(&info->list);
+ 		dl_list_add_tail(&iface->sta_seen, &info->list);
+ 		os_get_reltime(&info->last_seen);
++		info->ssi_signal = ssi_signal;
+ 		return;
+ 	}
+ 
+@@ -634,6 +635,7 @@ void sta_track_add(struct hostapd_iface
+ 	info = os_zalloc(sizeof(*info));
+ 	os_memcpy(info->addr, addr, ETH_ALEN);
+ 	os_get_reltime(&info->last_seen);
++	info->ssi_signal = ssi_signal;
+ 
+ 	if (iface->num_sta_seen >= iface->conf->track_sta_max_num) {
+ 		/* Expire oldest entry to make room for a new one */
+@@ -698,7 +700,7 @@ void handle_probe_req(struct hostapd_dat
+ 		return;
+ 	ie = ((const u8 *) mgmt) + IEEE80211_HDRLEN;
+ 	if (hapd->iconf->track_sta_max_num)
+-		sta_track_add(hapd->iface, mgmt->sa);
++		sta_track_add(hapd->iface, mgmt->sa, ssi_signal);
+ 	ie_len = len - IEEE80211_HDRLEN;
+ 
+ 	for (i = 0; hapd->probereq_cb && i < hapd->num_probereq_cb; i++)
+Index: hostapd-2016-06-15/src/ap/beacon.h
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/beacon.h
++++ hostapd-2016-06-15/src/ap/beacon.h
+@@ -21,7 +21,7 @@ int ieee802_11_update_beacons(struct hos
+ int ieee802_11_build_ap_params(struct hostapd_data *hapd,
+ 			       struct wpa_driver_ap_params *params);
+ void ieee802_11_free_ap_params(struct wpa_driver_ap_params *params);
+-void sta_track_add(struct hostapd_iface *iface, const u8 *addr);
++void sta_track_add(struct hostapd_iface *iface, const u8 *addr, int ssi_signal);
+ void sta_track_expire(struct hostapd_iface *iface, int force);
+ struct hostapd_data *
+ sta_track_seen_on(struct hostapd_iface *iface, const u8 *addr,
+Index: hostapd-2016-06-15/src/ap/hostapd.h
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/hostapd.h
++++ hostapd-2016-06-15/src/ap/hostapd.h
+@@ -313,6 +313,7 @@ struct hostapd_sta_info {
+ 	struct dl_list list;
+ 	u8 addr[ETH_ALEN];
+ 	struct os_reltime last_seen;
++    int ssi_signal;
+ };
+ 
+ /**
+Index: hostapd-2016-06-15/src/ap/ieee802_11.c
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/ieee802_11.c
++++ hostapd-2016-06-15/src/ap/ieee802_11.c
+@@ -2678,7 +2678,7 @@ int ieee802_11_mgmt(struct hostapd_data
+ 	}
+ 
+ 	if (hapd->iconf->track_sta_max_num)
+-		sta_track_add(hapd->iface, mgmt->sa);
++		sta_track_add(hapd->iface, mgmt->sa, fi->ssi_signal);
+ 
+ 	switch (stype) {
+ 	case WLAN_FC_STYPE_AUTH:

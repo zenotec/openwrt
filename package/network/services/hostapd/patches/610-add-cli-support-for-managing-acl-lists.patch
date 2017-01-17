@@ -1,6 +1,8 @@
---- a/hostapd/ctrl_iface.c
-+++ b/hostapd/ctrl_iface.c
-@@ -2175,6 +2175,12 @@ static int hostapd_ctrl_iface_receive_pr
+Index: hostapd-2016-06-15/hostapd/ctrl_iface.c
+===================================================================
+--- hostapd-2016-06-15.orig/hostapd/ctrl_iface.c
++++ hostapd-2016-06-15/hostapd/ctrl_iface.c
+@@ -2398,6 +2398,12 @@ static int hostapd_ctrl_iface_receive_pr
  	} else if (os_strncmp(buf, "NEW_STA ", 8) == 0) {
  		if (hostapd_ctrl_iface_new_sta(hapd, buf + 8))
  			reply_len = -1;
@@ -13,9 +15,11 @@
  	} else if (os_strncmp(buf, "DEAUTHENTICATE ", 15) == 0) {
  		if (hostapd_ctrl_iface_deauthenticate(hapd, buf + 15))
  			reply_len = -1;
---- a/hostapd/hostapd_cli.c
-+++ b/hostapd/hostapd_cli.c
-@@ -59,10 +59,14 @@ static const char *const hostapd_cli_ful
+Index: hostapd-2016-06-15/hostapd/hostapd_cli.c
+===================================================================
+--- hostapd-2016-06-15.orig/hostapd/hostapd_cli.c
++++ hostapd-2016-06-15/hostapd/hostapd_cli.c
+@@ -60,10 +60,14 @@ static const char *const hostapd_cli_ful
  
  static const char *const commands_help =
  "Commands:\n"
@@ -30,7 +34,7 @@
  "   deauthenticate <addr>  deauthenticate a station\n"
  "   disassociate <addr>  disassociate a station\n"
  #ifdef CONFIG_IEEE80211W
-@@ -310,6 +314,34 @@ static int hostapd_cli_cmd_new_sta(struc
+@@ -364,6 +368,34 @@ static int hostapd_cli_cmd_new_sta(struc
  }
  
  
@@ -65,7 +69,7 @@
  static int hostapd_cli_cmd_deauthenticate(struct wpa_ctrl *ctrl, int argc,
  					  char *argv[])
  {
-@@ -1071,12 +1103,16 @@ struct hostapd_cli_cmd {
+@@ -1221,12 +1253,16 @@ struct hostapd_cli_cmd {
  
  static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
  	{ "ping", hostapd_cli_cmd_ping },
@@ -82,9 +86,11 @@
  	{ "deauthenticate", hostapd_cli_cmd_deauthenticate },
  	{ "disassociate", hostapd_cli_cmd_disassociate },
  #ifdef CONFIG_IEEE80211W
---- a/src/ap/ctrl_iface_ap.c
-+++ b/src/ap/ctrl_iface_ap.c
-@@ -238,6 +238,122 @@ int hostapd_ctrl_iface_sta_next(struct h
+Index: hostapd-2016-06-15/src/ap/ctrl_iface_ap.c
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/ctrl_iface_ap.c
++++ hostapd-2016-06-15/src/ap/ctrl_iface_ap.c
+@@ -252,6 +252,130 @@ int hostapd_ctrl_iface_sta_next(struct h
  
  #endif
  
@@ -95,6 +101,7 @@
 +        struct mac_acl_entry **acl = &hapd->conf->deny_mac;
 +        struct mac_acl_entry *newacl;
 +        int *num = &hapd->conf->num_deny_mac;
++	    int vlan_id = 0; /* TODO: Add VLAN support */
 +        int rem = 0;
 +        int ret;
 +
@@ -137,7 +144,10 @@
 +
 +                *acl = newacl;
 +                os_memcpy((*acl)[*num].addr, addr, ETH_ALEN);
-+                (*acl)[*num].vlan_id = 0;
++		        os_memset(&(*acl)[*num].vlan_id, 0,
++		            sizeof((*acl)[*num].vlan_id));
++		        (*acl)[*num].vlan_id.untagged = vlan_id;
++		        (*acl)[*num].vlan_id.notempty = !!vlan_id;
 +                (*num)++;
 +        }
 +
@@ -153,6 +163,7 @@
 +        struct mac_acl_entry **acl = &hapd->conf->accept_mac;
 +        struct mac_acl_entry *newacl;
 +        int *num = &hapd->conf->num_accept_mac;
++	    int vlan_id = 0; /* TODO: Add VLAN support */
 +        int rem = 0;
 +        int ret;
 +
@@ -195,7 +206,10 @@
 +
 +                *acl = newacl;
 +                os_memcpy((*acl)[*num].addr, addr, ETH_ALEN);
-+                (*acl)[*num].vlan_id = 0;
++		        os_memset(&(*acl)[*num].vlan_id, 0,
++		            sizeof((*acl)[*num].vlan_id));
++		        (*acl)[*num].vlan_id.untagged = vlan_id;
++		        (*acl)[*num].vlan_id.notempty = !!vlan_id;
 +                (*num)++;
 +        }
 +
@@ -207,8 +221,10 @@
  #ifdef CONFIG_P2P_MANAGER
  static int p2p_manager_disconnect(struct hostapd_data *hapd, u16 stype,
  				  u8 minor_reason_code, const u8 *addr)
---- a/src/ap/ctrl_iface_ap.h
-+++ b/src/ap/ctrl_iface_ap.h
+Index: hostapd-2016-06-15/src/ap/ctrl_iface_ap.h
+===================================================================
+--- hostapd-2016-06-15.orig/src/ap/ctrl_iface_ap.h
++++ hostapd-2016-06-15/src/ap/ctrl_iface_ap.h
 @@ -15,6 +15,10 @@ int hostapd_ctrl_iface_sta(struct hostap
  			   char *buf, size_t buflen);
  int hostapd_ctrl_iface_sta_next(struct hostapd_data *hapd, const char *txtaddr,
