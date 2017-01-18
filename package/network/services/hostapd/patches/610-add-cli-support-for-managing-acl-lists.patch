@@ -41,28 +41,28 @@ Index: hostapd-2016-06-15/hostapd/hostapd_cli.c
 +static int hostapd_cli_cmd_deny_sta(struct wpa_ctrl *ctrl, int argc,
 +                                   char *argv[])
 +{
-+        char buf[64];
-+        if (argc != 1) {
-+                printf("Invalid 'deny_sta' command - exactly one argument, STA "
-+                       "address, is required.\n");
-+                return -1;
-+        }
-+        snprintf(buf, sizeof(buf), "DENY_STA %s", argv[0]);
-+        return wpa_ctrl_command(ctrl, buf);
++	char buf[64];
++	if (argc != 1) {
++		printf("Invalid 'deny_sta' command - exactly one argument, STA "
++			"address, is required.\n");
++		return -1;
++	}
++	snprintf(buf, sizeof(buf), "DENY_STA %s", argv[0]);
++	return wpa_ctrl_command(ctrl, buf);
 +}
 +
 +
 +static int hostapd_cli_cmd_accept_sta(struct wpa_ctrl *ctrl, int argc,
 +                                   char *argv[])
 +{
-+        char buf[64];
-+        if (argc != 1) {
-+                printf("Invalid 'accept_sta' command - exactly one argument, STA "
-+                       "address, is required.\n");
-+                return -1;
-+        }
-+        snprintf(buf, sizeof(buf), "ACCEPT_STA %s", argv[0]);
-+        return wpa_ctrl_command(ctrl, buf);
++	char buf[64];
++	if (argc != 1) {
++		printf("Invalid 'accept_sta' command - exactly one argument, STA "
++			"address, is required.\n");
++		return -1;
++	}
++	snprintf(buf, sizeof(buf), "ACCEPT_STA %s", argv[0]);
++	return wpa_ctrl_command(ctrl, buf);
 +}
 +
 +
@@ -81,8 +81,8 @@ Index: hostapd-2016-06-15/hostapd/hostapd_cli.c
  	{ "all_sta", hostapd_cli_cmd_all_sta },
  	{ "new_sta", hostapd_cli_cmd_new_sta },
 +#endif /* CONFIG_CTRL_IFACE_MIB */
-+        { "deny_sta", hostapd_cli_cmd_deny_sta },
-+        { "accept_sta", hostapd_cli_cmd_accept_sta },
++	{ "deny_sta", hostapd_cli_cmd_deny_sta },
++	{ "accept_sta", hostapd_cli_cmd_accept_sta },
  	{ "deauthenticate", hostapd_cli_cmd_deauthenticate },
  	{ "disassociate", hostapd_cli_cmd_disassociate },
  #ifdef CONFIG_IEEE80211W

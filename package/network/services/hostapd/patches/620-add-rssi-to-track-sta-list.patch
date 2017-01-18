@@ -87,3 +87,40 @@ Index: hostapd-2016-06-15/src/ap/ieee802_11.c
  
  	switch (stype) {
  	case WLAN_FC_STYPE_AUTH:
+Index: hostapd-2016-06-15/hostapd/hostapd_cli.c
+===================================================================
+--- hostapd-2016-06-15.orig/hostapd/hostapd_cli.c
++++ hostapd-2016-06-15/hostapd/hostapd_cli.c
+@@ -66,6 +66,9 @@ static const char *const commands_help =
+ "   all_sta              get MIB variables for all stations\n"
+ "   new_sta <addr>       add a new station\n"
+ #endif /* CONFIG_CTRL_IFACE_MIB */
++#ifdef NEED_AP_MLME
++"   track_sta_all        get list of tracked (not associated) stations\n"
++#endif
+ "   deny_sta <addr>      add station to deny ACL\n"
+ "   accept_sta <addr>    add station to accept ACL\n"
+ "   deauthenticate <addr>  deauthenticate a station\n"
+@@ -368,6 +371,12 @@ static int hostapd_cli_cmd_new_sta(struc
+ }
+ 
+ 
++static int hostapd_cli_cmd_track_sta_all(struct wpa_ctrl *ctrl, int argc, char *argv[])
++{
++	return wpa_ctrl_command(ctrl, "TRACK_STA_LIST");
++}
++
++
+ static int hostapd_cli_cmd_deny_sta(struct wpa_ctrl *ctrl, int argc,
+                                    char *argv[])
+ {
+@@ -1261,6 +1270,9 @@ static const struct hostapd_cli_cmd host
+ 	{ "all_sta", hostapd_cli_cmd_all_sta },
+ 	{ "new_sta", hostapd_cli_cmd_new_sta },
+ #endif /* CONFIG_CTRL_IFACE_MIB */
++#ifdef NEED_AP_MLME
++	{ "track_sta_all", hostapd_cli_cmd_track_sta_all },
++#endif /* NEED_AP_MLME */
+ 	{ "deny_sta", hostapd_cli_cmd_deny_sta },
+ 	{ "accept_sta", hostapd_cli_cmd_accept_sta },
+ 	{ "deauthenticate", hostapd_cli_cmd_deauthenticate },
