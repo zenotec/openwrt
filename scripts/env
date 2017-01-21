@@ -63,6 +63,7 @@ env_init() {
 	[ -d .git ] || { 
 		git init &&
 		touch .config &&
+		touch feeds.conf &&
 		mkdir files &&
 		git add . && 
 		git commit -q -m "Initial import"
@@ -87,6 +88,8 @@ env_sync() {
 env_link_config() {
 	rm -f "$BASEDIR/.config"
 	ln -s env/.config "$BASEDIR/.config"
+	rm -f "$BASEDIR/feeds.conf"
+	ln -s env/feeds.conf "$BASEDIR/feeds.conf"
 	mkdir -p "$ENVDIR/files"
 	[ -L "$BASEDIR/files" ] || ln -s env/files "$BASEDIR/files"
 }
