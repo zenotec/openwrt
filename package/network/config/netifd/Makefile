@@ -36,6 +36,23 @@ CMAKE_OPTIONS += \
 	-DLIBNL_LIBS=-lnl-tiny \
 	-DDEBUG=1
 
+define Package/netifd/config
+menu "Configuration"
+        depends on PACKAGE_netifd
+
+config NETIFD_OVS
+        bool
+        default n
+        prompt "Add support for Open vSwitch bridges"
+
+endmenu
+endef
+
+ifeq ($(CONFIG_NETIFD_OVS),y)
+       CMAKE_OPTIONS += -DNETIFD_OVS=1
+endif
+
+
 define Package/netifd/install
 	$(INSTALL_DIR) $(1)/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/netifd $(1)/sbin/
