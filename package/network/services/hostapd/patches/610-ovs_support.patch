@@ -1,0 +1,464 @@
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/linux_ovs.c
+===================================================================
+--- /dev/null
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/linux_ovs.c
+@@ -0,0 +1,185 @@
++/*
++ * Linux ioctl helper functions for driver wrappers
++ * Copyright (c) 2002-2010, Jouni Malinen <j@w1.fi>
++ * Copyright (c) 2020, Kevin Mahoney <kevin.mahoney@zenotec.net>
++ *
++ * This software may be distributed under the terms of the BSD license.
++ * See README for more details.
++ */
++
++#include <stdbool.h>
++#include <sys/wait.h>
++
++#include "utils/includes.h"
++#include <net/if.h>
++
++#include "utils/common.h"
++#include "linux_ovs.h"
++
++static int
++forkexec(const char *file, const char **argv, void (*xfrm)(char *), char *buf, int len)
++{
++	char dbgbuf[512];
++	int status;
++	int io[2];
++	int pid;
++	int off;
++	int err;
++	char of;
++	char c;
++
++	if (!buf) {
++		buf = &c;
++		len = sizeof(c);
++	}
++
++	err = pipe(io);
++	if (err < 0)
++		return err;
++
++	buf[0] = 0;
++	len--; /* for NUL */
++
++	pid = fork();
++	switch (pid) {
++		case 0:
++			close(0);
++			close(1);
++			close(2);
++			dup2(io[1], 1);
++			close(io[0]);
++			close(io[1]);
++			execvp(file, (char **)argv);
++			exit(1);
++		case -1:
++			close(io[0]);
++			close(io[1]);
++			err = -1;
++			break;
++		default:
++			close(io[1]);
++			off = 0;
++			while (off < len) {
++				err = read(io[0], buf + off, len - off);
++				if (err <= 0)
++					break;
++				off += err;
++			}
++			while (read(io[0], &of, 1) == 1);
++			buf[off] = 0;
++			close(io[0]);
++			waitpid(pid, &status, 0);
++
++			err = 1;
++			if (WIFEXITED(status))
++				err = WEXITSTATUS(status);
++
++			if (xfrm)
++				xfrm(buf);
++
++			break;
++	}
++
++	return err;
++}
++
++static bool
++bridge_exists(const char* brname)
++{
++	char c;
++	const char *argv[] = { "ovs-vsctl", "br-exists", brname, NULL };
++	return (forkexec(argv[0], argv, NULL, &c, sizeof(c)) == 0);
++}
++
++static bool
++get_bridge(char* brname, const char* ifname)
++{
++	char cbuf[IFNAMSIZ + 1];
++	const char *argv[] = { "ovs-vsctl", "port-to-br", ifname, NULL };
++
++	memset(cbuf, 0, sizeof(cbuf));
++	if (forkexec(argv[0], argv, NULL, cbuf, sizeof(cbuf)) == 0) {
++		strcpy(brname, cbuf);
++		return true;
++	}
++
++	return false;
++}
++
++
++static bool
++port_exists(const char* brname, const char* ifname)
++{
++	char cbuf[IFNAMSIZ + 1];
++	return (get_bridge(cbuf, ifname) && strcmp(cbuf, brname) == 0);
++}
++
++
++int linux_ovsbr_add(int sock, const char *brname)
++{
++	char c;
++	int status;
++	const char *argv[] = { "ovs-vsctl", "add-br", brname, NULL };
++
++	if (! bridge_exists(brname))
++		status = forkexec(argv[0], argv, NULL, &c, sizeof(c));
++
++	return (status == 0) ? 0 : -1;
++}
++
++
++int linux_ovsbr_del(int sock, const char *brname)
++{
++	char c;
++	int status;
++	const char *argv[] = { "ovs-vsctl", "del-br", brname, NULL };
++
++	if (bridge_exists(brname))
++		status = forkexec(argv[0], argv, NULL, &c, sizeof(c));
++
++	return (status == 0) ? 0 : -1;
++}
++
++
++int linux_ovsbr_add_port(int sock, const char *brname, const char *ifname)
++{
++	char c;
++	int status = 0;
++	int ifindex;
++	const char *argv[] = { "ovs-vsctl", "add-port", brname, ifname, NULL };
++
++	ifindex = if_nametoindex(ifname);
++	if (ifindex == 0)
++		return -1;
++
++	if (! port_exists(brname, ifname))
++		status = forkexec(argv[0], argv, NULL, &c, sizeof(c));
++
++	return (status == 0) ? 0 : -1;
++}
++
++
++int linux_ovsbr_del_port(int sock, const char *brname, const char *ifname)
++{
++	char c;
++	int status = 0;
++	int ifindex;
++	const char *argv[] = { "ovs-vsctl", "del-port", brname, ifname, NULL };
++
++	ifindex = if_nametoindex(ifname);
++	if (ifindex == 0)
++		return -1;
++
++	if (port_exists(brname, ifname))
++		status = forkexec(argv[0], argv, NULL, &c, sizeof(c));
++
++	return (status == 0) ? 0 : -1;
++
++}
++
++
++int linux_ovsbr_get(char *brname, const char *ifname)
++{
++	return (get_bridge(brname, ifname) ? 0 : -1);
++}
++
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/linux_ovs.h
+===================================================================
+--- /dev/null
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/linux_ovs.h
+@@ -0,0 +1,19 @@
++/*
++ * Open vSwitch helper functions for driver wrappers
++ * Copyright (c) 2002-2010, Jouni Malinen <j@w1.fi>
++ * Copyright (c) 2020, Kevin Mahoney <kevin.mahoney@zenotec.net>
++ *
++ * This software may be distributed under the terms of the BSD license.
++ * See README for more details.
++ */
++
++#ifndef LINUX_OVS_H
++#define LINUX_OVS_H
++
++int linux_ovsbr_add(int sock, const char *brname);
++int linux_ovsbr_del(int sock, const char *brname);
++int linux_ovsbr_add_port(int sock, const char *brname, const char *ifname);
++int linux_ovsbr_del_port(int sock, const char *brname, const char *ifname);
++int linux_ovsbr_get(char *brname, const char *ifname);
++
++#endif /* LINUX_OVS_H */
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/drivers.mak
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/drivers/drivers.mak
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/drivers.mak
+@@ -72,6 +72,11 @@ DRV_CFLAGS += -DCONFIG_DRIVER_OPENBSD
+ DRV_OBJS += ../src/drivers/driver_openbsd.o
+ endif
+
++ifdef CONFIG_DRIVER_OVS
++DRV_CFLAGS += -DCONFIG_DRIVER_OVS
++DRV_OBJS += ../src/drivers/linux_ovs.o
++endif
++
+ ifdef CONFIG_DRIVER_NONE
+ DRV_CFLAGS += -DCONFIG_DRIVER_NONE
+ DRV_OBJS += ../src/drivers/driver_none.o
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/drivers.mk
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/drivers/drivers.mk
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/drivers.mk
+@@ -68,6 +68,11 @@ DRV_CFLAGS += -DCONFIG_DRIVER_OPENBSD
+ DRV_OBJS += src/drivers/driver_openbsd.c
+ endif
+
++ifdef CONFIG_DRIVER_OVS
++DRV_CFLAGS += -DCONFIG_DRIVER_OVS
++DRV_OBJS += src/drivers/linux_ovs.c
++endif
++
+ ifdef CONFIG_DRIVER_NONE
+ DRV_CFLAGS += -DCONFIG_DRIVER_NONE
+ DRV_OBJS += src/drivers/driver_none.c
+Index: hostapd-2019-08-08-ca8c2bd2/hostapd/config_file.c
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/hostapd/config_file.c
++++ hostapd-2019-08-08-ca8c2bd2/hostapd/config_file.c
+@@ -2374,6 +2374,8 @@ static int hostapd_config_fill(struct ho
+ 			   sizeof(conf->bss[0]->iface));
+ 	} else if (os_strcmp(buf, "bridge") == 0) {
+ 		os_strlcpy(bss->bridge, pos, sizeof(bss->bridge));
++	} else if (os_strcmp(buf, "brtype") == 0) {
++		bss->brtype = atoi(pos);
+ 	} else if (os_strcmp(buf, "vlan_bridge") == 0) {
+ 		os_strlcpy(bss->vlan_bridge, pos, sizeof(bss->vlan_bridge));
+ 	} else if (os_strcmp(buf, "wds_bridge") == 0) {
+Index: hostapd-2019-08-08-ca8c2bd2/src/ap/ap_config.h
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/ap/ap_config.h
++++ hostapd-2019-08-08-ca8c2bd2/src/ap/ap_config.h
+@@ -272,6 +272,7 @@ struct airtime_sta_weight {
+ struct hostapd_bss_config {
+ 	char iface[IFNAMSIZ + 1];
+ 	char bridge[IFNAMSIZ + 1];
++	int brtype;
+ 	char vlan_bridge[IFNAMSIZ + 1];
+ 	char wds_bridge[IFNAMSIZ + 1];
+
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/driver_nl80211.c
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/drivers/driver_nl80211.c
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/driver_nl80211.c
+@@ -34,6 +34,9 @@
+ #include "netlink.h"
+ #include "linux_defines.h"
+ #include "linux_ioctl.h"
++#ifdef CONFIG_DRIVER_OVS
++#include "linux_ovs.h"
++#endif
+ #include "radiotap.h"
+ #include "radiotap_iter.h"
+ #include "rfkill.h"
+@@ -6971,6 +6974,66 @@ static int i802_check_bridge(struct wpa_
+ }
+
+
++#ifdef CONFIG_DRIVER_OVS
++static int i802_check_ovsbr(struct wpa_driver_nl80211_data *drv,
++			    struct i802_bss *bss,
++			    const char *brname, const char *ifname)
++{
++	int br_ifindex;
++	char in_br[IFNAMSIZ];
++
++	os_strlcpy(bss->brname, brname, IFNAMSIZ);
++	br_ifindex = if_nametoindex(brname);
++	if (br_ifindex == 0) {
++		/*
++		 * Bridge was configured, but the bridge device does
++		 * not exist. Try to add it now.
++		 */
++		if (linux_ovsbr_add(drv->global->ioctl_sock, brname) < 0) {
++			wpa_printf(MSG_ERROR, "nl80211: Failed to add the "
++				   "OVS bridge interface %s: %s",
++				   brname, strerror(errno));
++			return -1;
++		}
++		bss->added_bridge = 1;
++		br_ifindex = if_nametoindex(brname);
++		add_ifidx(drv, br_ifindex, drv->ifindex);
++	}
++	bss->br_ifindex = br_ifindex;
++
++	if (linux_ovsbr_get(in_br, ifname) == 0) {
++		if (os_strcmp(in_br, brname) == 0) {
++			bss->already_in_bridge = 1;
++			return 0; /* already in the bridge */
++		}
++
++		wpa_printf(MSG_DEBUG, "nl80211: Removing interface %s from "
++			   "OVS bridge %s", ifname, in_br);
++		if (linux_ovsbr_del_port(drv->global->ioctl_sock, in_br, ifname) <
++		    0) {
++			wpa_printf(MSG_ERROR, "nl80211: Failed to "
++				   "remove interface %s from OVS bridge "
++				   "%s: %s",
++				   ifname, in_br, strerror(errno));
++			return -1;
++		}
++	}
++
++	wpa_printf(MSG_DEBUG, "nl80211: Adding interface %s into OVS bridge %s",
++		   ifname, brname);
++	if (linux_ovsbr_add_port(drv->global->ioctl_sock, brname, ifname) < 0) {
++		wpa_printf(MSG_ERROR, "nl80211: Failed to add interface %s "
++			   "into OVS bridge %s: %s",
++			   ifname, brname, strerror(errno));
++		return -1;
++	}
++	bss->added_if_into_bridge = 1;
++
++	return 0;
++}
++#endif
++
++
+ static void *i802_init(struct hostapd_data *hapd,
+ 		       struct wpa_init_params *params)
+ {
+@@ -6994,6 +7057,14 @@ static void *i802_init(struct hostapd_da
+ 			   params->ifname, master_ifname);
+ 		br_ifindex = if_nametoindex(master_ifname);
+ 		os_strlcpy(bss->brname, master_ifname, IFNAMSIZ);
++#ifdef CONFIG_DRIVER_OVS
++	} else if (linux_ovsbr_get(master_ifname, params->ifname) == 0) {
++		wpa_printf(MSG_DEBUG, "nl80211: Interface %s is in an OVS bridge %s",
++			   params->ifname, master_ifname);
++		br_ifindex = if_nametoindex(master_ifname);
++		os_strlcpy(bss->brname, master_ifname, IFNAMSIZ);
++		bss->brtype = 1;
++#endif
+ 	} else if ((params->num_bridge == 0 || !params->bridge[0]) &&
+ 		   linux_master_get(master_ifname, params->ifname) == 0) {
+ 		wpa_printf(MSG_DEBUG, "nl80211: Interface %s is in master %s",
+@@ -7007,6 +7078,14 @@ static void *i802_init(struct hostapd_da
+ 				   master_ifname);
+ 			br_ifindex = if_nametoindex(master_ifname);
+ 			os_strlcpy(bss->brname, master_ifname, IFNAMSIZ);
++#ifdef CONFIG_DRIVER_OVS
++		} else if (linux_ovsbr_get(master_ifname, params->ifname) == 0) {
++			wpa_printf(MSG_DEBUG, "nl80211: which is in OVS bridge %s",
++				   master_ifname);
++			br_ifindex = if_nametoindex(master_ifname);
++			os_strlcpy(bss->brname, master_ifname, IFNAMSIZ);
++			bss->brtype = 1;
++#endif
+ 		}
+ 	} else {
+ 		master_ifname[0] = '\0';
+@@ -7028,9 +7107,14 @@ static void *i802_init(struct hostapd_da
+ 	add_ifidx(drv, drv->ifindex, IFIDX_ANY);
+
+ 	if (params->num_bridge && params->bridge[0]) {
+-		if (i802_check_bridge(drv, bss, params->bridge[0],
+-				      params->ifname) < 0)
++		if (!params->brtype[0] && i802_check_bridge(drv, bss,
++					params->bridge[0], params->ifname) < 0)
++			goto failed;
++#ifdef CONFIG_DRIVER_OVS
++		if (params->brtype[0] && i802_check_ovsbr(drv, bss,
++					params->bridge[0], params->ifname) < 0)
+ 			goto failed;
++#endif
+ 		if (os_strcmp(params->bridge[0], master_ifname) != 0)
+ 			br_added = 1;
+ 	}
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/driver_nl80211.h
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/drivers/driver_nl80211.h
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/driver_nl80211.h
+@@ -55,6 +55,7 @@ struct i802_bss {
+ 	struct i802_bss *next;
+ 	int ifindex;
+ 	int br_ifindex;
++	int brtype;
+ 	u64 wdev_id;
+ 	char ifname[IFNAMSIZ + 1];
+ 	char brname[IFNAMSIZ];
+Index: hostapd-2019-08-08-ca8c2bd2/hostapd/hostapd.conf
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/hostapd/hostapd.conf
++++ hostapd-2019-08-08-ca8c2bd2/hostapd/hostapd.conf
+@@ -20,6 +20,14 @@ interface=wlan0
+ # interface is also created.
+ #bridge=br0
+
++# Bridge type.
++#
++# Types:
++#   0 = Linux bridge
++#   1 = Open vSwitch bridge
++#
++#brtype=0
++
+ # Driver interface type (hostap/wired/none/nl80211/bsd);
+ # default: hostap). nl80211 is used with all Linux mac80211 drivers.
+ # Use driver=none if building hostapd as a standalone RADIUS server that does
+Index: hostapd-2019-08-08-ca8c2bd2/src/drivers/driver.h
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/src/drivers/driver.h
++++ hostapd-2019-08-08-ca8c2bd2/src/drivers/driver.h
+@@ -1928,6 +1928,7 @@ struct wpa_init_params {
+ 	const char *driver_params;
+ 	int use_pae_group_addr;
+ 	char **bridge;
++	int *brtype;
+ 	size_t num_bridge;
+
+ 	u8 *own_addr; /* buffer for writing own MAC address */
+Index: hostapd-2019-08-08-ca8c2bd2/hostapd/main.c
+===================================================================
+--- hostapd-2019-08-08-ca8c2bd2.orig/hostapd/main.c
++++ hostapd-2019-08-08-ca8c2bd2/hostapd/main.c
+@@ -210,12 +210,15 @@ static int hostapd_driver_init(struct ho
+
+ 	params.num_bridge = hapd->iface->num_bss;
+ 	params.bridge = os_calloc(hapd->iface->num_bss, sizeof(char *));
+-	if (params.bridge == NULL)
++	params.brtype = os_calloc(hapd->iface->num_bss, sizeof(int *));
++	if (params.bridge == NULL || params.brtype == NULL)
+ 		return -1;
+ 	for (i = 0; i < hapd->iface->num_bss; i++) {
+ 		struct hostapd_data *bss = hapd->iface->bss[i];
+-		if (bss->conf->bridge[0])
++		if (bss->conf->bridge[0]) {
+ 			params.bridge[i] = bss->conf->bridge;
++			params.brtype[i] = bss->conf->brtype;
++		}
+ 	}
+
+ 	params.own_addr = hapd->own_addr;

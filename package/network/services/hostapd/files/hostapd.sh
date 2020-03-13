@@ -470,6 +470,13 @@ hostapd_set_bss_options() {
 
 	append bss_conf "ssid=$ssid" "$N"
 	[ -n "$network_bridge" ] && append bss_conf "bridge=$network_bridge" "$N"
+	brtype=0
+	case "$network_bridge_type" in
+		ovsbr)
+			brtype=1
+		;;
+	esac
+	append bss_conf "brtype=$brtype" "$N"
 	[ -n "$iapp_interface" ] && {
 		local ifname
 		network_get_device ifname "$iapp_interface" || ifname="$iapp_interface"
