@@ -129,6 +129,7 @@ DRV_DEPENDS:=+PACKAGE_kmod-cfg80211:libnl-tiny
 define Package/hostapd/Default
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   TITLE:=IEEE 802.1x Authenticator
   URL:=http://hostap.epitest.fi/
   DEPENDS:=$(DRV_DEPENDS) +hostapd-common +libubus
@@ -190,6 +191,7 @@ endef
 define Package/wpad/Default
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   TITLE:=IEEE 802.1x Authenticator/Supplicant
   DEPENDS:=$(DRV_DEPENDS) +hostapd-common +libubus
   URL:=http://hostap.epitest.fi/
@@ -279,6 +281,7 @@ Package/wpad-mesh-wolfssl/description = $(Package/wpad-mesh/description)
 define Package/wpa-supplicant/Default
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   TITLE:=WPA Supplicant
   URL:=http://hostap.epitest.fi/wpa_supplicant/
   DEPENDS:=$(DRV_DEPENDS) +hostapd-common +libubus
@@ -351,11 +354,13 @@ define Package/hostapd-common
   TITLE:=hostapd/wpa_supplicant common support files
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
 endef
 
 define Package/hostapd-utils
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   TITLE:=IEEE 802.1x Authenticator (utils)
   URL:=http://hostap.epitest.fi/
   DEPENDS:=@$(subst $(space),||,$(foreach pkg,$(HOSTAPD_PROVIDERS),PACKAGE_$(pkg)))
@@ -369,6 +374,7 @@ endef
 define Package/wpa-cli
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   DEPENDS:=@$(subst $(space),||,$(foreach pkg,$(SUPPLICANT_PROVIDERS),PACKAGE_$(pkg)))
   TITLE:=WPA Supplicant command line control utility
 endef
@@ -377,6 +383,7 @@ define Package/eapol-test
   TITLE:=802.1x authentication test utility
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   VARIANT:=supplicant-full-internal
   DEPENDS:=$(DRV_DEPENDS) +libubus
 endef
@@ -385,6 +392,7 @@ define Package/eapol-test-openssl
   TITLE:=802.1x authentication test utility
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   VARIANT:=supplicant-full-openssl
   CONFLICTS:=$(filter-out eapol-test-openssl ,$(EAPOL_TEST_PROVIDERS))
   DEPENDS:=$(DRV_DEPENDS) +libubus +libopenssl
@@ -395,6 +403,7 @@ define Package/eapol-test-wolfssl
   TITLE:=802.1x authentication test utility
   SECTION:=net
   CATEGORY:=Network
+  SUBMENU:=Hostapd
   VARIANT:=supplicant-full-wolfssl
   CONFLICTS:=$(filter-out eapol-test-openssl ,$(filter-out eapol-test-wolfssl ,$(EAPOL_TEST_PROVIDERS)))
   DEPENDS:=$(DRV_DEPENDS) +libubus +libwolfssl
