@@ -24,13 +24,16 @@ PKG_BUILD_PARALLEL:=1
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_kmod-ath9k \
 	CONFIG_PACKAGE_kmod-cfg80211 \
-	CONFIG_PACKAGE_hostapd \
+	CONFIG_PACKAGE_hostapd-full \
 	CONFIG_PACKAGE_hostapd-basic \
 	CONFIG_PACKAGE_hostapd-mini \
 	CONFIG_WPA_RFKILL_SUPPORT \
 	CONFIG_DRIVER_WEXT_SUPPORT \
 	CONFIG_DRIVER_11N_SUPPORT \
 	CONFIG_DRIVER_11AC_SUPPORT \
+	CONFIG_HOSTAPD_SSL_INTERNAL \
+	CONFIG_HOSTAPD_SSL_OPENSSL \
+	CONFIG_HOSTAPD_SSL_WOLFSSL \
 
 EAPOL_TEST_PROVIDERS:=eapol-test eapol-test-openssl eapol-test-wolfssl
 
@@ -123,8 +126,20 @@ ifdef CONFIG_USE_GLIBC
   TARGET_LDFLAGS_C += -lrt
 endif
 
-DRV_DEPENDS:=+PACKAGE_kmod-cfg80211:libnl-tiny
+ifdef CONFIG_HOSTAPD_SSL_OPENSSL
+  DRIVER_MAKEOPTS += CONFIG_TLS=openssl CONFIG_SAE=y CONFIG_OWE=y CONFIG_SUITEB192=y CONFIG_AP=y CONFIG_MESH=y
+  TARGET_LDFLAGS += -lcrypto -lssl
+endif
 
+ifdef CONFIG_HOSTAPD_SSL_WOLFSSL
+  DRIVER_MAKEOPTS += CONFIG_TLS=wolfssl CONFIG_WPS_NFC=1 CONFIG_SAE=y CONFIG_OWE=y CONFIG_SUITEB192=y CONFIG_AP=y CONFIG_MESH=y
+  TARGET_LDFLAGS += -lwolfssl
+endif
+
+DRV_DEPENDS:= \
+	+PACKAGE_kmod-cfg80211:libnl-tiny \
+	+HOSTAPD_SSL_OPENSSL:libopenssl \
+	+HOSTAPD_SSL_WOLFSSL:libwolfssl
 
 define Package/hostapd/Default
   SECTION:=net
@@ -138,34 +153,35 @@ define Package/hostapd/Default
   HOSTAPD_PROVIDERS+=$(1)
 endef
 
-define Package/hostapd
+define Package/hostapd/config
+choice
+	prompt "SSL support"
+	default HOSTAPD_SSL_INTERNAL
+
+	config HOSTAPD_SSL_INTERNAL
+		bool "Internal"
+
+	config HOSTAPD_SSL_OPENSSL
+		bool "OpenSSL"
+
+	config HOSTAPD_SSL_WOLFSSL
+		bool "WolfSSL"
+endchoice
+endef
+
+define Package/hostapd-full
 $(call Package/hostapd/Default,$(1))
   TITLE+= (full)
-  VARIANT:=full-internal
+  VARIANT:=full
 endef
 
-define Package/hostapd/description
- This package contains a full featured IEEE 802.1x/WPA/EAP/RADIUS
- Authenticator.
+define Package/hostapd-full/config
+$(call Package/hostapd/config,FULL)
 endef
 
-define Package/hostapd-openssl
-$(call Package/hostapd/Default,$(1))
-  TITLE+= (full)
-  VARIANT:=full-openssl
-  DEPENDS+=+libopenssl
+define Package/hostapd-full/description
+ This package contains a full featured IEEE 802.1x/WPA/EAP/RADIUS Authenticator.
 endef
-
-Package/hostapd-openssl/description = $(Package/hostapd/description)
-
-define Package/hostapd-wolfssl
-$(call Package/hostapd/Default,$(1))
-  TITLE+= (full)
-  VARIANT:=full-wolfssl
-  DEPENDS+=+libwolfssl
-endef
-
-Package/hostapd-wolfssl/description = $(Package/hostapd/description)
 
 define Package/hostapd-basic
 $(call Package/hostapd/Default,$(1))
@@ -534,10 +550,9 @@ define Package/hostapd/install
 	$(call Install/hostapd,$(1))
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hostapd/hostapd $(1)/usr/sbin/
 endef
+Package/hostapd-full/install = $(Package/hostapd/install)
 Package/hostapd-basic/install = $(Package/hostapd/install)
 Package/hostapd-mini/install = $(Package/hostapd/install)
-Package/hostapd-openssl/install = $(Package/hostapd/install)
-Package/hostapd-wolfssl/install = $(Package/hostapd/install)
 
 ifneq ($(LOCAL_TYPE),supplicant)
   define Package/hostapd-utils/install
@@ -600,11 +615,9 @@ ifeq ($(BUILD_VARIANT),supplicant-full-wolfssl)
   endef
 endif
 
-$(eval $(call BuildPackage,hostapd))
+$(eval $(call BuildPackage,hostapd-full))
 $(eval $(call BuildPackage,hostapd-basic))
 $(eval $(call BuildPackage,hostapd-mini))
-$(eval $(call BuildPackage,hostapd-openssl))
-$(eval $(call BuildPackage,hostapd-wolfssl))
 $(eval $(call BuildPackage,wpad))
 $(eval $(call BuildPackage,wpad-mesh-openssl))
 $(eval $(call BuildPackage,wpad-mesh-wolfssl))
