@@ -1,0 +1,38 @@
+Index: backports-4.19.98-1/drivers/net/wireless/mac80211_hwsim.c
+===================================================================
+--- backports-4.19.98-1.orig/drivers/net/wireless/mac80211_hwsim.c
++++ backports-4.19.98-1/drivers/net/wireless/mac80211_hwsim.c
+@@ -516,7 +516,7 @@ struct mac80211_hwsim_data {
+ 	struct ieee80211_rate rates[ARRAY_SIZE(hwsim_rates)];
+ 	struct ieee80211_iface_combination if_combination;
+
+-	struct mac_address addresses[2];
++	struct mac_address addresses[8];
+ 	int channels, idx;
+ 	bool use_chanctx;
+ 	bool destroy_on_close;
+@@ -2640,6 +2640,7 @@ static int mac80211_hwsim_new_radio(stru
+ {
+ 	int err;
+ 	u8 addr[ETH_ALEN];
++	int i;
+ 	struct mac80211_hwsim_data *data;
+ 	struct ieee80211_hw *hw;
+ 	enum nl80211_band band;
+@@ -2699,11 +2700,11 @@ static int mac80211_hwsim_new_radio(stru
+ 		addr[0] = 0x02;
+ 		addr[3] = idx >> 8;
+ 		addr[4] = idx;
+-		memcpy(data->addresses[0].addr, addr, ETH_ALEN);
+-		/* Why need here second address ? */
+-		memcpy(data->addresses[1].addr, addr, ETH_ALEN);
+-		data->addresses[1].addr[0] |= 0x40;
+-		hw->wiphy->n_addresses = 2;
++		for (i = 0; i < 8; i++) {
++			memcpy(data->addresses[i].addr, addr, ETH_ALEN);
++			data->addresses[i].addr[1] |= i;
++		}
++		hw->wiphy->n_addresses = 8;
+ 		hw->wiphy->addresses = data->addresses;
+ 		/* possible address clash is checked at hash table insertion */
+ 	} else {
